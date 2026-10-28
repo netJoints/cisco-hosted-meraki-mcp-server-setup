@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "meraki": {
+      "url": "https://mcp.meraki.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:MERAKI_DASHBOARD_API_KEY}"
+      }
+    }
+  }
+}

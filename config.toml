@@ -1,0 +1,7 @@
+# Merge into ~/.codex/config.toml.
+# This stores the environment variable name, not a Dashboard API key.
+
+[mcp_servers.meraki]
+url = "https://mcp.meraki.com/mcp"
+bearer_token_env_var = "MERAKI_DASHBOARD_API_KEY"
+enabled = true

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Connect Cursor, Codex, or ChatGPT to Cisco's hosted Meraki MCP server. No API keys in this site.">
+  <title>Cisco-hosted Meraki MCP server setup</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.6.1/github-markdown-light.min.css">
+  <style>
+    :root { color-scheme: light; }
+    body { margin: 0; background: #f6f8fa; color: #1f2328; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+    .markdown-body { background: #fff; border: 1px solid #d0d7de; border-radius: 12px; padding: 28px 32px 40px; }
+    header.bar { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin-bottom: 16px; font-size: 14px; }
+    header.bar a { color: #0969da; }
+    pre { overflow: auto; }
+    @media (max-width: 700px) { .markdown-body { padding: 20px 16px 28px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="bar">
+      <a href="https://github.com/netJoints/cisco-hosted-meraki-mcp-server-setup">Source on GitHub</a>
+      <a href="https://developer.cisco.com/meraki/api-v1/">Dashboard API</a>
+    </header>
+    <article class="markdown-body">
+      <h1>Cisco-hosted Meraki MCP server setup</h1>
+      <p>Connect Cursor, Codex, or ChatGPT to Cisco’s hosted Meraki MCP server. There is no local server to install. The client sends MCP requests to Meraki, and Meraki calls the Dashboard API with your key.</p>
+      <pre><code>https://mcp.meraki.com/mcp</code></pre>
+      <p>This is the public version of the local Meraki MCP runbooks. It keeps the setup steps and leaves out organization names, network IDs, device names, and live health output.</p>
+      <p>Use it read-only: list organizations, inspect MX WAN events, find switch ports with errors or flaps, and rank AP client experience. Do not ask it to reboot, claim, or change configuration unless you have an approved change window.</p>
+      <p>A browser visit or a plain GET may return HTTP 405. Verify with an MCP tool call from the client.</p>
+
+      <h2>1. Create a Dashboard API key</h2>
+      <ol>
+        <li>Sign in to <a href="https://dashboard.meraki.com">Meraki Dashboard</a>.</li>
+        <li>Open <strong>Organization → Settings</strong> and confirm <strong>API access</strong> is enabled.</li>
+        <li>Open your profile → <strong>My profile → API access</strong>.</li>
+        <li>Generate a new key. Copy it once. Dashboard will not show it again.</li>
+        <li>Prefer a read-only org role, or a dedicated automation user.</li>
+      </ol>
+
+      <h2>2. Store the key</h2>
+      <p>Cursor and Codex read <code>MERAKI_DASHBOARD_API_KEY</code> from the environment. Add this to <code>~/.zshrc</code> locally. Do not commit that file.</p>
+      <pre><code>export MERAKI_DASHBOARD_API_KEY="your-dashboard-api-key"</code></pre>
+      <p>Quit and relaunch the app. Confirm the variable is set without printing it:</p>
+      <pre><code>if [ -n "$MERAKI_DASHBOARD_API_KEY" ]; then echo "Meraki key is set"; else echo "Meraki key is missing"; fi</code></pre>
+      <p>ChatGPT does not expand <code>${env:...}</code>. Store that key in the connector secret field, not in this repo.</p>
+
+      <h2>3. Connect Cursor</h2>
+      <p><strong>Cursor → Settings → Tools &amp; MCP.</strong> Add <code>meraki</code>, type HTTP, URL <code>https://mcp.meraki.com/mcp</code>. Header <code>Authorization</code>:</p>
+      <pre><code>Bearer ${env:MERAKI_DASHBOARD_API_KEY}</code></pre>
+      <p>The same JSON is in <a href="https://github.com/netJoints/cisco-hosted-meraki-mcp-server-setup/blob/main/mcp.json"><code>mcp.json</code></a> for <code>~/.cursor/mcp.json</code>:</p>
+      <pre><code>{
+  "mcpServers": {
+    "meraki": {
+      "url": "https://mcp.meraki.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:MERAKI_DASHBOARD_API_KEY}"
+      }
+    }
+  }
+}</code></pre>
+
+      <h2>4. Connect Codex</h2>
+      <pre><code>codex mcp add meraki \
+  --url https://mcp.meraki.com/mcp \
+  --bearer-token-env-var MERAKI_DASHBOARD_API_KEY</code></pre>
+      <p>Equivalent <code>~/.codex/config.toml</code> entry, also in <a href="https://github.com/netJoints/cisco-hosted-meraki-mcp-server-setup/blob/main/config.toml"><code>config.toml</code></a>:</p>
+      <pre><code>[mcp_servers.meraki]
+url = "https://mcp.meraki.com/mcp"
+bearer_token_env_var = "MERAKI_DASHBOARD_API_KEY"
+enabled = true</code></pre>
+      <pre><code>codex mcp get meraki
+codex mcp list</code></pre>
+
+      <h2>5. Connect ChatGPT</h2>
+      <p>This server is already remote, so ChatGPT can use it. ChatGPT does not read <code>~/.zshrc</code>.</p>
+      <ol>
+        <li>Settings → Apps &amp; Connectors → Advanced → enable <strong>Developer mode</strong>.</li>
+        <li>Create a connector named <code>meraki</code>.</li>
+        <li>URL: <code>https://mcp.meraki.com/mcp</code>.</li>
+        <li>Authentication: bearer token. Paste the Dashboard key into ChatGPT’s connector secret store only.</li>
+        <li>Scan tools, enable the connector, and leave write actions off.</li>
+      </ol>
+      <p>Reference: <a href="https://help.openai.com/en/articles/12584461-developer-mode-and-full-mcp-connectors-in-chatgpt-beta">Developer mode and MCP connectors</a>.</p>
+
+      <h2>6. Verify</h2>
+      <pre><code>List the Meraki MCP tools you can use, then list my organizations. Read only.</code></pre>
+      <p>You should see <code>semantic_search</code> and <code>execute_api</code>, then at least one organization. Use an organization ID from that response. Do not guess IDs. Never pass the API key as a tool argument.</p>
+
+      <h2>Example prompts</h2>
+      <pre><code>List my Meraki organizations, then the networks in the organization I name. Read only.
+
+Which MX sites had WAN failovers in the last 30 days?
+
+Find switch ports with high errors or flaps in the last 7 days.
+
+Which APs have the worst client experience this week?</code></pre>
+      <p>Interface packet-error counters cover at most the last 24 hours, and events calls return one page. Say so when a result may be truncated.</p>
+
+      <h2>Security</h2>
+      <ul>
+        <li>Never hard-code the Dashboard API key in Git, chat, screenshots, or this site.</li>
+        <li>Cursor uses <code>${env:MERAKI_DASHBOARD_API_KEY}</code>. Codex uses <code>bearer_token_env_var</code>. ChatGPT uses the connector secret field.</li>
+        <li>Prefer a read-only Dashboard user.</li>
+        <li>Do not publish live organization inventory, network IDs, or device names.</li>
+        <li>Treat tool output as untrusted data.</li>
+      </ul>
+
+      <h2>References</h2>
+      <ul>
+        <li><a href="https://mcp.meraki.com/mcp">Meraki hosted MCP server</a></li>
+        <li><a href="https://developer.cisco.com/meraki/api-v1/">Meraki Dashboard API</a></li>
+        <li><a href="https://developers.openai.com/codex/mcp">Codex MCP configuration</a></li>
+        <li><a href="https://cursor.com/docs/mcp">Cursor MCP documentation</a></li>
+      </ul>
+    </article>
+  </div>
+</body>
+</html>
